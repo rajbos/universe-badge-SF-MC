@@ -1,0 +1,6 @@
+out/
+*.bin
+__pycache__/
+frame*.png
+tools/arnis-windows.exe
+sf_world/
