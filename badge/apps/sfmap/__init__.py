@@ -63,9 +63,19 @@ except OSError:
     fatal("world.bin missing")
 
 # Raw pixel value per palette entry, in the screen's native format, by drawing
-# each colour into a 1-pixel-high strip and reading the buffer back (the same
-# trick mona_paint uses).
-strip = image(NCOL * 4, 1)
+# each colour into a 1-pixel-high strip and reading the buffer back. A plain
+# image(w, h) is a 32-bit buffer regardless of the screen mode, so when the
+# screen is RGB565 the strip must be created as RGB565 too (as brattal does),
+# or the ptr16 lookups in the kernels read half-pixels and every colour is wrong.
+
+
+def screen_like_image(w, h):
+    if PIXEL_BYTES == 2:
+        return image(w, h, bytearray(w * h * 2), image.RGB565)
+    return image(w, h)
+
+
+strip = screen_like_image(NCOL * 4, 1)
 strip.antialias = image.OFF
 for i, (r, g, b) in enumerate(PALETTE_RGB):
     # 4 fog levels per colour: 0 = near, 3 = far
@@ -75,7 +85,7 @@ for i, (r, g, b) in enumerate(PALETTE_RGB):
         strip.put(i * 4 + f_, 0)
 PAL_RAW = bytearray(strip.raw)
 
-sky = image(1, 1)
+sky = screen_like_image(1, 1)
 sky.pen = color.rgb(150, 190, 235)
 sky.clear()
 SKY_RAW = bytearray(sky.raw)

@@ -54,19 +54,29 @@ Write-Host "Arnis at $arnis"
 
 # ---------------------------------------------------------------- World
 Step "Generate world ($Bbox)"
-if ($SkipGenerate -and (Test-Path (Join-Path $WorldDir "region"))) {
+function Find-World($dir) {
+    # Arnis 3.x writes the world into a subfolder ("Arnis World 1"); older versions wrote it directly
+    if (Test-Path (Join-Path $dir "region")) { return $dir }
+    $sub = Get-ChildItem $dir -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName "region") } | Select-Object -First 1
+    if ($sub) { return $sub.FullName }
+    return $null
+}
+if ($SkipGenerate -and (Find-World $WorldDir)) {
     Write-Host "Skipping, using existing $WorldDir"
 } else {
     if (Test-Path $WorldDir) { Remove-Item $WorldDir -Recurse -Force }
     New-Item -ItemType Directory $WorldDir | Out-Null
     # Needs internet (OpenStreetMap download). A 2.5 km bbox takes a few minutes.
-    & $arnis --bbox="$Bbox" --output-dir="$WorldDir"
-    if ($LASTEXITCODE -ne 0) { throw "Arnis failed (exit $LASTEXITCODE)" }
+    # arnis-windows.exe is a GUI-subsystem binary: a plain `&` call returns immediately, so wait explicitly
+    $p = Start-Process $arnis -ArgumentList "--bbox=`"$Bbox`"", "--output-dir=`"$WorldDir`"" -NoNewWindow -Wait -PassThru
+    if ($p.ExitCode -ne 0) { throw "Arnis failed (exit $($p.ExitCode))" }
 }
+$world = Find-World $WorldDir
+if (-not $world) { throw "No region folder found under $WorldDir" }
 
 # ---------------------------------------------------------------- Convert
 Step "Convert for the badge (scale $Scale)"
-& python (Join-Path $toolsDir "arnis_to_badge.py") $WorldDir -o $OutDir --scale $Scale
+& python (Join-Path $toolsDir "arnis_to_badge.py") $world -o $OutDir --scale $Scale
 if ($LASTEXITCODE -ne 0) { throw "Converter failed" }
 
 # ---------------------------------------------------------------- Preview
